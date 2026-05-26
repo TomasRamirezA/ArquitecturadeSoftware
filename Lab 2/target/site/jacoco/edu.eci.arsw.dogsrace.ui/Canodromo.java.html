@@ -1,0 +1,176 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="es"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>Canodromo.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Dogs Race (Java 21)</a> &gt; <a href="index.source.html" class="el_package">edu.eci.arsw.dogsrace.ui</a> &gt; <span class="el_source">Canodromo.java</span></div><h1>Canodromo.java</h1><pre class="source lang-java linenums">package edu.eci.arsw.dogsrace.ui;
+
+import java.awt.BorderLayout;
+import java.awt.Dimension;
+import java.awt.FlowLayout;
+import java.awt.GridLayout;
+import java.awt.Insets;
+import java.awt.Toolkit;
+import java.awt.event.ActionListener;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
+
+import javax.swing.JButton;
+import javax.swing.JFrame;
+import javax.swing.JPanel;
+import javax.swing.JOptionPane;
+import javax.swing.border.EmptyBorder;
+
+/**
+ * Interfaz de usuario y modelo para un Canodromo
+ * 
+ * @author rlopez
+ * 
+ */
+public class Canodromo extends JFrame {
+	private static final long serialVersionUID = 1L;
+
+	/**
+	 * Carriles del canodromo
+	 */
+	private Carril[] carril;
+
+<span class="fc" id="L33">	private JButton butStart = new JButton(&quot;Start&quot;);</span>
+<span class="fc" id="L34">	private JButton butStop = new JButton(&quot;Stop&quot;);</span>
+<span class="fc" id="L35">	private JButton butContinue = new JButton(&quot;Continue&quot;);</span>
+
+	/**
+	 * Constructor
+	 * 
+	 * @param nCarriles
+	 *                  Numero de carriles
+	 * @param longPista
+	 *                  Longitud de la pista
+	 */
+<span class="fc" id="L45">	public Canodromo(int nCarriles, int longPista) {</span>
+<span class="fc" id="L46">		carril = new Carril[nCarriles];</span>
+<span class="fc bfc" id="L47" title="All 2 branches covered.">		for (int i = 0; i &lt; carril.length; i++) {</span>
+<span class="fc" id="L48">			carril[i] = new Carril(longPista, &quot;&quot; + i);</span>
+		}
+
+<span class="fc" id="L51">		JPanel cont = (JPanel) getContentPane();</span>
+<span class="fc" id="L52">		cont.setLayout(new BorderLayout());</span>
+
+<span class="fc" id="L54">		JPanel panPistas = new JPanel();</span>
+<span class="fc" id="L55">		panPistas.setLayout(new GridLayout(nCarriles, 1));</span>
+
+		JPanel panCarril;
+		BorderLayout bLay;
+<span class="fc" id="L59">		GridLayout gridTrack = new GridLayout(1, longPista);</span>
+<span class="fc bfc" id="L60" title="All 2 branches covered.">		for (int row = 0; row &lt; nCarriles; row++) {</span>
+<span class="fc" id="L61">			bLay = new BorderLayout();</span>
+<span class="fc" id="L62">			panCarril = new JPanel();</span>
+<span class="fc" id="L63">			panCarril.setLayout(bLay);</span>
+<span class="fc" id="L64">			JPanel panTrack = new JPanel();</span>
+<span class="fc" id="L65">			panTrack.setLayout(gridTrack);</span>
+
+<span class="fc bfc" id="L67" title="All 2 branches covered.">			for (int col = 0; col &lt; longPista; col++) {</span>
+<span class="fc" id="L68">				panTrack.add(carril[row].getPaso(col));</span>
+			}
+<span class="fc" id="L70">			panCarril.add(panTrack, BorderLayout.CENTER);</span>
+<span class="fc" id="L71">			panCarril.add(carril[row].getLlegada(), BorderLayout.EAST);</span>
+<span class="fc" id="L72">			panPistas.add(panCarril);</span>
+		}
+
+<span class="fc" id="L75">		panPistas.setBorder(new EmptyBorder(new Insets(5, 0, 5, 0)));</span>
+
+<span class="fc" id="L77">		int butWidht = 8;</span>
+<span class="fc" id="L78">		int butHeight = 20;</span>
+<span class="fc" id="L79">		cont.add(panPistas, BorderLayout.NORTH);</span>
+
+<span class="fc" id="L81">		JPanel butPanel = new JPanel();</span>
+<span class="fc" id="L82">		butPanel.setLayout(new FlowLayout());</span>
+<span class="fc" id="L83">		butPanel.add(butStart);</span>
+<span class="fc" id="L84">		butPanel.add(butStop);</span>
+<span class="fc" id="L85">		butPanel.add(butContinue);</span>
+<span class="fc" id="L86">		cont.add(butPanel, BorderLayout.SOUTH);</span>
+
+<span class="fc" id="L88">		this.setSize(butWidht * longPista, butHeight * nCarriles + 400);</span>
+
+		// Get the size of the screen
+<span class="fc" id="L91">		Dimension dim = Toolkit.getDefaultToolkit().getScreenSize();</span>
+		// Determine the new location of the window
+<span class="fc" id="L93">		int w = this.getSize().width;</span>
+<span class="fc" id="L94">		int h = this.getSize().height;</span>
+<span class="fc" id="L95">		int x = (dim.width - w) / 2;</span>
+<span class="fc" id="L96">		int y = (dim.height - h) / 2;</span>
+		// Move the window
+<span class="fc" id="L98">		this.setLocation(x, y);</span>
+<span class="fc" id="L99">		this.setTitle(&quot;Canodromo&quot;);</span>
+
+<span class="fc" id="L101">		this.addWindowListener(new WindowAdapter() {</span>
+			@Override
+			public void windowClosing(WindowEvent e) {
+<span class="nc" id="L104">				System.exit(0);</span>
+<span class="nc" id="L105">			}</span>
+		});
+<span class="fc" id="L107">	}</span>
+
+	/**
+	 * Reinicia cada uno de los carriles
+	 */
+	public void restart() {
+<span class="fc bfc" id="L113" title="All 2 branches covered.">		for (int i = 0; i &lt; carril.length; i++) {</span>
+<span class="fc" id="L114">			carril[i].reStart();</span>
+		}
+<span class="fc" id="L116">	}</span>
+
+	/**
+	 * Retorna un carril
+	 * 
+	 * @param i
+	 *          Numero del carril
+	 * @return
+	 */
+	public Carril getCarril(int i) {
+<span class="fc" id="L126">		return carril[i];</span>
+	}
+
+	public int getNumCarriles() {
+<span class="fc" id="L130">		return carril.length;</span>
+	}
+
+	/**
+	 * Asocia una accion con el boton de start
+	 * 
+	 * @param action
+	 */
+	public void setStartAction(ActionListener action) {
+<span class="fc" id="L139">		butStart.addActionListener(action);</span>
+<span class="fc" id="L140">	}</span>
+
+	/**
+	 * Asocia una accion con el boton de stop
+	 * 
+	 * @param action
+	 */
+	public void setStopAction(ActionListener action) {
+<span class="fc" id="L148">		butStop.addActionListener(action);</span>
+<span class="fc" id="L149">	}</span>
+
+	/**
+	 * Asocia una accion con el boton de continuar
+	 * 
+	 * @param action
+	 */
+	public void setContinueAction(ActionListener action) {
+<span class="fc" id="L157">		butContinue.addActionListener(action);</span>
+<span class="fc" id="L158">	}</span>
+
+	public void winnerDialog(String winner, int total) {
+<span class="fc" id="L161">		JOptionPane.showMessageDialog(null, &quot;El ganador fue:&quot; + winner + &quot; de un total de &quot; + total);</span>
+<span class="fc" id="L162">	}</span>
+
+	public JButton getButStart() {
+<span class="fc" id="L165">		return butStart;</span>
+	}
+
+	public JButton getButStop() {
+<span class="fc" id="L169">		return butStop;</span>
+	}
+
+	public JButton getButContinue() {
+<span class="fc" id="L173">		return butContinue;</span>
+	}
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

@@ -1,0 +1,304 @@
+// Trigger redeploy: Tournament victory logic synchronized
+import { useState, useEffect } from 'react';
+import Login from './pages/Login/Login';
+import GameRoom from './pages/Game/GameRoom';
+import BunkerRoom from './features/game/components/BunkerRoom';
+import WorldMap from './features/game/components/WorldMap';
+import './App.css';
+import { API_BASE_URL } from './config/constants';
+import ErrorBoundary from './components/ErrorBoundary';
+import { useAssetPreload } from './hooks/useAssetPreload';
+import webSocketService from './core/WebSocketService';
+
+
+
+function App() {
+  const [user, setUser] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
+  const { progress, isLoaded: assetsLoaded } = useAssetPreload();
+  const [gameState, setGameState] = useState('LOBBY'); // LOBBY, BUNKER_START, WORLD_MAP, BUNKER_END
+  const [selectedCharacter, setSelectedCharacter] = useState(null);
+  const [roomCode, setRoomCode] = useState(null);
+  const [isPaused, setIsPaused] = useState(false);
+  const [isMuted, setIsMuted] = useState(false);
+
+  // Player Stats for HUD
+  const [stats, setStats] = useState({
+    health: 100,
+    stamina: 100,
+    weapons: 1
+  });
+  const [finalKills, setFinalKills] = useState(0);
+
+  const handleTeleport = () => {
+    setGameState('WORLD_MAP');
+  };
+
+  const handleWorldExit = (exitStats) => {
+    if (exitStats && exitStats.kills !== undefined) {
+      setFinalKills(exitStats.kills);
+    }
+    setGameState('BUNKER_END');
+  };
+
+  const handleStartGame = (character, code) => {
+    setSelectedCharacter(character);
+    setRoomCode(code);
+    setGameState('BUNKER_START');
+  };
+
+  const handleRestart = () => {
+    setGameState('LOBBY');
+  };
+
+  const handleLogout = () => {
+    // Direct redirect to backend logout for clean session handling
+    window.location.href = `${API_BASE_URL}/logout`;
+  };
+
+  // 1. Check authentication ONLY ONCE on mount
+  useEffect(() => {
+    setAuthLoading(true);
+    fetch(`${API_BASE_URL}/api/auth/user`, {
+      credentials: 'include',
+      redirect: 'manual' // More graceful than 'error'
+    })
+      .then(response => {
+        if (response.ok) return response.json();
+        throw new Error('Not authenticated');
+      })
+      .then(data => {
+        setUser(data);
+        setAuthLoading(false);
+      })
+      .catch(() => {
+        setUser(null);
+        setAuthLoading(false);
+      });
+  }, []); // Empty dependency array = only runs once
+
+  // 2. Global Pause Handler (Esc or Enter) - Runs when gameState or isPaused changes
+  useEffect(() => {
+
+    // Global Pause Handler (Esc or Enter)
+    const handleGlobalKeyDown = (e) => {
+      if (e.key === 'Escape' || e.key === 'Enter') {
+        const isCurrentlyPlaying = gameState === 'BUNKER_START' || gameState === 'WORLD_MAP';
+        if (isCurrentlyPlaying) {
+          const nextPausedState = !isPaused;
+          setIsPaused(nextPausedState);
+          
+          // Enviar sincronización MANUAL (Solo en eventos locales)
+          if (roomCode) {
+            webSocketService.sendMessage('/app/game.action', {
+                playerId: selectedCharacter,
+                roomCode: roomCode,
+                action: nextPausedState ? 'PAUSE' : 'RESUME'
+            });
+          }
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+  }, [gameState, isPaused, roomCode, selectedCharacter]); // Correct dependencies for the key listener
+
+  // Attempt to play audio on first user interaction if the browser blocked autoplay
+  useEffect(() => {
+    const handleFirstInteraction = () => {
+      const audioEl = document.getElementById('bg-music');
+      if (audioEl && audioEl.paused && !isMuted) {
+        audioEl.play().catch(e => console.log("Audio play blocked until further interaction"));
+      }
+      document.removeEventListener('click', handleFirstInteraction);
+      document.removeEventListener('keydown', handleFirstInteraction);
+    };
+    
+    document.addEventListener('click', handleFirstInteraction);
+    document.addEventListener('keydown', handleFirstInteraction);
+    
+    return () => {
+      document.removeEventListener('click', handleFirstInteraction);
+      document.removeEventListener('keydown', handleFirstInteraction);
+    };
+  }, [isMuted]);
+
+  if (authLoading || !assetsLoaded) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', height: '100vh', backgroundColor: '#05050A', color: 'white' }}>
+        <h2 className="title-glow">Cargando ZOmbiland...</h2>
+        {!assetsLoaded && (
+          <div style={{ marginTop: '20px', textAlign: 'center' }}>
+            <p style={{ color: '#32CD32', fontSize: '1.2rem', marginBottom: '10px' }}>Almacenando Texturas en Caché: {progress}%</p>
+            <div style={{ width: '300px', height: '10px', backgroundColor: '#333', borderRadius: '5px', overflow: 'hidden' }}>
+              <div style={{ width: `${progress}%`, height: '100%', backgroundColor: '#32CD32', transition: 'width 0.2s' }}></div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // Support for different user object structures
+  const userName = user?.displayName || user?.name || 'Sobreviviente';
+  const userPhoto = user?.photoURL || user?.imageUrl || '/assets/props/police/police_radio.png';
+
+  if (user) {
+    const isPlaying = gameState === 'BUNKER_START' || gameState === 'WORLD_MAP';
+
+    return (
+      <div style={{ position: 'relative', height: '100vh', width: '100%', backgroundColor: '#000', overflow: 'hidden' }}>
+        
+        {/* Background Music Player */}
+        <audio 
+           id="bg-music"
+           src="/musica/post_apocalypse.mp3" 
+           autoPlay 
+           loop 
+           muted={isMuted}
+           ref={(audio) => { if (audio) audio.volume = 0.3; }}
+        />
+
+        {/* Global Mute Button (Top Left) */}
+        <div style={{ position: 'absolute', top: '15px', left: '15px', zIndex: 10000 }}>
+          <button 
+             onClick={() => setIsMuted(!isMuted)} 
+             title={isMuted ? "Activar música" : "Silenciar música"}
+             style={{ 
+               background: 'rgba(0,0,0,0.6)', 
+               border: '1px solid #32CD32', 
+               color: 'white', 
+               borderRadius: '50%', 
+               width: '45px', 
+               height: '45px', 
+               cursor: 'pointer', 
+               display: 'flex', 
+               justifyContent: 'center', 
+               alignItems: 'center',
+               fontSize: '1.2rem',
+               boxShadow: '0 0 10px rgba(50, 205, 50, 0.3)',
+               transition: 'all 0.3s ease'
+             }}
+             onMouseOver={(e) => e.currentTarget.style.transform = 'scale(1.1)'}
+             onMouseOut={(e) => e.currentTarget.style.transform = 'scale(1)'}
+          >
+             {isMuted ? '🔇' : '🔊'}
+          </button>
+        </div>
+
+        {/* User overlay widget */}
+        {selectedCharacter && isPlaying && (
+          <div className="room-code-badge pop-in">
+            REFUGIO: <span>{roomCode}</span>
+          </div>
+        )}
+
+        <div className="user-overlay">
+          <img src={userPhoto} alt={userName} className="user-photo" />
+          <div className="user-info">
+            <strong>{userName}</strong>
+            {selectedCharacter && <div style={{ color: '#32CD32', fontSize: '0.8rem' }}>Superviviente: {selectedCharacter}</div>}
+          </div>
+          <button onClick={handleLogout} className="logout-btn">
+            Salir
+          </button>
+        </div>
+
+        {/* HUD Layer removed by user request ('ESTE QUITALO') */}
+
+        {/* Game Flow Integration */}
+        {gameState === 'LOBBY' && (
+          <GameRoom onConfirm={handleStartGame} />
+        )}
+        
+        {/* Pause System Overlay */}
+        {isPaused && (
+          <div className="pause-overlay-premium">
+            <div className="pause-content">
+              <h1 className="pause-title">PAUSA</h1>
+              <div className="pause-buttons">
+                <button className="game-btn btn-resume" onClick={() => {
+                  setIsPaused(false);
+                  if (roomCode) {
+                    webSocketService.sendMessage('/app/game.action', {
+                        playerId: selectedCharacter,
+                        roomCode: roomCode,
+                        action: 'RESUME'
+                    });
+                  }
+                }}>
+                  Reanudar
+                </button>
+                <button className="game-btn btn-exit" onClick={() => { 
+                  setIsPaused(false); 
+                  if (roomCode) {
+                    webSocketService.sendMessage('/app/game.action', {
+                        playerId: selectedCharacter,
+                        roomCode: roomCode,
+                        action: 'RESUME'
+                    });
+                  }
+                  handleRestart(); 
+                }}>
+                   Volver al Menú
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {(gameState === 'BUNKER_START') && (
+          <ErrorBoundary>
+            <BunkerRoom 
+              onTeleport={handleTeleport} 
+              character={selectedCharacter} 
+              roomCode={roomCode} 
+              onRestart={handleRestart} 
+              isPaused={isPaused} 
+              onPauseSync={setIsPaused} 
+            />
+          </ErrorBoundary>
+        )}
+
+        {(gameState === 'WORLD_MAP') && (
+          <ErrorBoundary>
+            <WorldMap 
+              onExit={handleWorldExit} 
+              character={selectedCharacter} 
+              roomCode={roomCode} 
+              onRestart={handleRestart} 
+              isPaused={isPaused} 
+              onPauseSync={setIsPaused} 
+            />
+          </ErrorBoundary>
+        )}
+
+        {gameState === 'BUNKER_END' && (
+          <div style={{ 
+            height: '100%', 
+            display: 'flex', 
+            flexDirection: 'column', 
+            alignItems: 'center', 
+            justifyContent: 'center', 
+            backgroundColor: '#000',
+            color: 'white',
+            textAlign: 'center'
+          }}>
+            <h1 className="title-glow" style={{ fontSize: '4rem', color: '#32CD32' }}>¡REFUGIO ALCANZADO!</h1>
+            <p style={{ fontSize: '1.5rem', marginBottom: '30px' }}>Has sobrevivido al exterior y llegado al búnker final.</p>
+            <div style={{ padding: '20px', backgroundColor: 'rgba(50, 205, 50, 0.1)', border: '2px solid #32CD32', borderRadius: '15px', marginBottom: '30px', minWidth: '300px' }}>
+                <h3 style={{ fontSize: '2rem', color: '#fff', margin: '0' }}>Clasificación Final</h3>
+                <p style={{ fontSize: '1.5rem', color: '#32CD32', fontWeight: 'bold', margin: '10px 0 0 0' }}>Bajas confirmadas: {finalKills}</p>
+            </div>
+            <button className="game-btn create-btn" onClick={handleRestart}>Volver al Menú</button>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  return <Login />;
+}
+
+export default App;

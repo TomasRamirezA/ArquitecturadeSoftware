@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="es"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>MainCanodromo.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Dogs Race (Java 21)</a> &gt; <a href="index.source.html" class="el_package">edu.eci.arsw.dogsrace.app</a> &gt; <span class="el_source">MainCanodromo.java</span></div><h1>MainCanodromo.java</h1><pre class="source lang-java linenums">package edu.eci.arsw.dogsrace.app;
+
+import edu.eci.arsw.dogsrace.control.RaceControl;
+import edu.eci.arsw.dogsrace.domain.ArrivalRegistry;
+import edu.eci.arsw.dogsrace.threads.Galgo;
+import edu.eci.arsw.dogsrace.ui.Canodromo;
+
+import javax.swing.JButton;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+
+/**
+ * Entry point (UI + orchestration).
+ */
+<span class="nc" id="L15">public final class MainCanodromo {</span>
+
+    private static Galgo[] galgos;
+    private static Canodromo can;
+
+<span class="fc" id="L20">    private static final ArrivalRegistry registry = new ArrivalRegistry();</span>
+<span class="fc" id="L21">    private static final RaceControl control = new RaceControl();</span>
+
+    public static Canodromo getCanodromo() {
+<span class="fc" id="L24">        return can;</span>
+    }
+
+    public static void setCanodromo(Canodromo canodromo) {
+<span class="fc" id="L28">        can = canodromo;</span>
+<span class="fc" id="L29">    }</span>
+
+    public static void main(String[] args) {
+<span class="fc" id="L32">        can = new Canodromo(17, 100);</span>
+<span class="fc" id="L33">        galgos = new Galgo[can.getNumCarriles()];</span>
+<span class="fc" id="L34">        can.setVisible(true);</span>
+
+<span class="fc" id="L36">        can.setStartAction(new ActionListener() {</span>
+            @Override
+            public void actionPerformed(final ActionEvent e) {
+<span class="fc" id="L39">                ((JButton) e.getSource()).setEnabled(false);</span>
+
+<span class="fc" id="L41">                new Thread(() -&gt; {</span>
+<span class="fc bfc" id="L42" title="All 2 branches covered.">                    for (int i = 0; i &lt; can.getNumCarriles(); i++) {</span>
+<span class="fc" id="L43">                        galgos[i] = new Galgo(can.getCarril(i), String.valueOf(i), registry, control);</span>
+<span class="fc" id="L44">                        galgos[i].start();</span>
+                    }
+
+<span class="pc bpc" id="L47" title="1 of 2 branches missed.">                    for (Galgo g : galgos) {</span>
+                        try {
+<span class="nc" id="L49">                            g.join();</span>
+<span class="nc" id="L50">                        } catch (InterruptedException ex) {</span>
+<span class="nc" id="L51">                            Thread.currentThread().interrupt();</span>
+<span class="nc" id="L52">                            return;</span>
+<span class="nc" id="L53">                        }</span>
+                    }
+
+<span class="nc" id="L56">                    String winner = registry.getWinner();</span>
+<span class="nc" id="L57">                    int total = registry.getNextPosition() - 1;</span>
+
+<span class="nc" id="L59">                    can.winnerDialog(winner, total);</span>
+<span class="nc" id="L60">                    System.out.println(&quot;El ganador fue: &quot; + winner);</span>
+<span class="pc" id="L61">                }, &quot;race-orchestrator&quot;).start();</span>
+<span class="fc" id="L62">            }</span>
+        });
+
+<span class="fc" id="L65">        can.setStopAction(new ActionListener() {</span>
+            @Override
+            public void actionPerformed(ActionEvent e) {
+<span class="fc" id="L68">                control.pause();</span>
+<span class="fc" id="L69">                System.out.println(&quot;Carrera pausada!&quot;);</span>
+<span class="fc" id="L70">            }</span>
+        });
+
+<span class="fc" id="L73">        can.setContinueAction(new ActionListener() {</span>
+            @Override
+            public void actionPerformed(ActionEvent e) {
+<span class="fc" id="L76">                control.resume();</span>
+<span class="fc" id="L77">                System.out.println(&quot;Carrera reanudada!&quot;);</span>
+<span class="fc" id="L78">            }</span>
+        });
+<span class="fc" id="L80">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

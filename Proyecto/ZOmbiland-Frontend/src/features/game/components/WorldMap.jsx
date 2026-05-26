@@ -1,0 +1,440 @@
+import React, { useState, useEffect, useCallback } from 'react';
+import GameMap from './GameMap';
+import TouchControls from './TouchControls';
+import { TILE_TYPES } from '../../../core/GameEngine';
+import { usePlayerMovement } from '../../../hooks/usePlayerMovement';
+import { API_BASE_URL } from '../../../config/constants';
+import webSocketService from '../../../core/WebSocketService';
+// IA local elinidada para usar Sincronización de Servidor
+
+const WorldMap = ({ onExit, character, roomCode, onRestart, isPaused, onPauseSync }) => {
+  const [mapData, setMapData] = useState(null);
+  const [otherPlayers, setOtherPlayers] = useState({});
+  const [zombies, setZombies] = useState([]);
+  const [health, setHealth] = useState(100);
+  const [ammo, setAmmo] = useState(30);
+  const [kills, setKills] = useState(0);
+  const [lastExternalShot, setLastExternalShot] = useState(null);
+  const [myAimAngle, setMyAimAngle] = useState(0);
+  const [respawnTimeLeft, setRespawnTimeLeft] = useState(30);
+  const [paralyzed, setParalyzed] = useState(false);
+  const [roomMode, setRoomMode] = useState('TRADICIONAL');
+  const [zoneData, setZoneData] = useState({ radius: 50, timeLeft: 300 });
+  const [tournamentOutcome, setTournamentOutcome] = useState(null); // 'WIN', 'LOSS', 'END'
+
+  // Asset Preloading: Force browser to cache all GIFs at once
+  useEffect(() => {
+    const characters = ['andres', 'juanpablo', 'maria', 'tomas'];
+    const directions = ['abajo', 'arriba', 'derecha', 'izquierda'];
+    
+    characters.forEach(charId => {
+      directions.forEach(dir => {
+        const img = new Image();
+        img.src = `/personajes/${charId}/${dir}.gif`;
+      });
+      // Death image
+      const death = new Image();
+      death.src = `/personajes/${charId}/${
+        charId === 'andres' ? 'juanandres_muerto.png' : 
+        charId === 'maria' ? 'maria_muerta.png' : 
+        `${charId}_muerto.png`
+      }`;
+    });
+
+    // Zombie preloading
+    const zombieStates = [
+        'abajo', 'arriba', 'derecha', 'izquierda',
+        'ataque_adelante', 'ataque_atras', 'ataque_derecha', 'ataque_izquierda', 'ataque'
+    ];
+    // Chasqueador preloading
+    const chasqueadorStates = ['abajo', 'arriba', 'dercha', 'izquierda', 'ataque atras', 'ataque derecha', 'ataque frente', 'ataque izquierda'];
+    chasqueadorStates.forEach(state => {
+        const img = new Image();
+        img.src = `/zombies/chasqueador/${state}.gif`;
+    });
+    
+    // Weapon direction preloading
+    const weaponDirs = ['derecha', 'abajo_derecha', 'abajo', 'abajo_izquierda', 'izquierda', 'arriba_izquierda', 'arriba', 'arriba_derecha'];
+    weaponDirs.forEach(dir => {
+        const img = new Image();
+        img.src = `/assets/weapons/weapon direction/${dir}.png`;
+    });
+
+    console.log(">> Preloading assets for better performance (Players, Zombies, Chasqueadores & Weapons)...");
+  }, []);
+
+  useEffect(() => {
+    if (!roomCode) return;
+    
+    // Configurar WebSockets para la sala
+    webSocketService.connect(() => {
+        // Obtenemos el modo de la sala
+        fetch(`${API_BASE_URL}/api/game/rooms/${roomCode}/mode`, { credentials: 'include' })
+        .then(res => res.json())
+        .then(data => setRoomMode(data.mode || 'TRADICIONAL'))
+        .catch(err => console.error("Error fetching room mode", err));
+
+        // Obtenemos el mapa
+        fetch(`${API_BASE_URL}/api/game/rooms/${roomCode}/map`, { credentials: 'include' })
+        .then(res => res.json())
+        .then(data => {
+            setMapData(data);
+            
+            // Avisar que entramos al mapa con la posición de inicio
+            webSocketService.sendMessage('/app/game.join', {
+                playerId: character,
+                roomCode: roomCode,
+                x: data.startX,
+                y: data.startY,
+                action: 'abajo',
+                health: 100,
+                location: 'world'
+            });
+        })
+        .catch(err => console.error("Error fetching map", err));
+
+        // Suscribirse a los movimientos y estados (incluyendo vida y munición)
+        const topic = `/topic/game.state.${roomCode}`;
+        webSocketService.subscribe(topic, (message) => {
+            if (message.action === 'TOURNAMENT_WIN') {
+                if (message.winnerId === character) {
+                    setTournamentOutcome('WIN');
+                } else {
+                    setTournamentOutcome('LOSS');
+                }
+                return;
+            }
+            if (message.action === 'TOURNAMENT_END') {
+                setTournamentOutcome('END');
+                return;
+            }
+
+            if (message.playerId === character) {
+                // Actualizar vida, munición y kills propias desde el servidor
+                if (message.health !== undefined) setHealth(message.health);
+                if (message.ammo !== undefined) setAmmo(message.ammo);
+                if (message.paralyzed !== undefined) setParalyzed(message.paralyzed);
+                if (message.kills !== undefined) setKills(message.kills);
+                
+                // FORCE local position update on teleport (random exit)
+                if (message.action === 'TELEPORT') {
+                    console.log(">> TELEPORTING LOCAL PLAYER:", message.x, message.y);
+                    setPlayerPos({ x: message.x, y: message.y });
+                }
+            } else if (message.playerId) {
+                // Si es un ataque externo, capturamos el evento para visualizarlo
+                if (message.action === 'ATTACK') {
+                    setLastExternalShot({
+                        id: Date.now() + Math.random(),
+                        ...message
+                    });
+                }
+                
+                setOtherPlayers(prev => ({
+                    ...prev,
+                    [message.playerId]: { ...prev[message.playerId], ...message, lastMoveTime: Date.now(), isMoving: true }
+                }));
+            }
+        });
+        
+        // Suscribirse a la zona del torneo
+        const zoneTopic = `/topic/game.zone.${roomCode}`;
+        webSocketService.subscribe(zoneTopic, (data) => {
+            if (data && data.radius !== undefined) {
+                // Solo actualizar si hay un cambio real para evitar re-renders innecesarios
+                setZoneData(prev => {
+                    if (Math.abs(prev.radius - data.radius) < 0.1 && prev.timeLeft === data.timeLeft) return prev;
+                    return data;
+                });
+            }
+        });
+
+        // Suscribirse a los zombies del servidor (Cada 0.5s)
+        const zombieTopic = `/topic/game.zombies.${roomCode}`;
+        webSocketService.subscribe(zombieTopic, (zombieList) => {
+            if (Array.isArray(zombieList)) {
+                setZombies(zombieList);
+            }
+        });
+
+        // Suscribirse a actualizaciones del mapa (Ej: medkits recogidos)
+        const mapUpdateTopic = `/topic/game.map.${roomCode}`;
+        webSocketService.subscribe(mapUpdateTopic, (update) => {
+            if (update && update.x !== undefined && update.y !== undefined) {
+                setMapData(prev => {
+                    if (!prev || !prev.matrix) return prev;
+                    const newMatrix = [...prev.matrix];
+                    newMatrix[update.y] = [...newMatrix[update.y]];
+                    newMatrix[update.y][update.x] = update.tile;
+                    return { ...prev, matrix: newMatrix };
+                });
+            }
+        });
+
+        // Sincronizar estado inicial de la sala para ver a quienes ya estaban quietos
+        fetch(`${API_BASE_URL}/api/game/rooms/${roomCode}/state`, { credentials: 'include' })
+        .then(res => res.json())
+        .then(playersInfo => {
+            if (Array.isArray(playersInfo)) {
+                setOtherPlayers(prev => {
+                const newState = { ...prev };
+                playersInfo.forEach(p => {
+                    if (p.playerId !== character) {
+                        newState[p.playerId] = { ...p, lastMoveTime: Date.now(), isMoving: false };
+                    }
+                });
+                return newState;
+                });
+            }
+        })
+        .catch(err => console.error(err));
+    });
+
+    return () => {
+        webSocketService.disconnect();
+    }
+
+  }, [character, roomCode]);
+
+  // Multiplayer Idle Tracker: Checks if other players stopped moving
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const now = Date.now();
+      setOtherPlayers(prev => {
+        let changed = false;
+        const newState = { ...prev };
+        for (const id in newState) {
+          if (newState[id].isMoving && now - (newState[id].lastMoveTime || 0) > 600) {
+            newState[id] = { ...newState[id], isMoving: false };
+            changed = true;
+          }
+        }
+        return changed ? newState : prev;
+      });
+    }, 200);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Collisions
+  const handleCollideSpecial = useCallback((x, y, cell) => {
+    const cellID = typeof cell === 'object' ? cell.p : cell;
+    if (cellID === TILE_TYPES.BUNKER_DOOR) {
+      if (mapData && (x !== mapData.startX || y !== mapData.startY)) {
+        // AVISO INMEDIATO: Antes de cambiar de pantalla, avisamos al servidor
+        webSocketService.sendMessage('/app/game.action', {
+            playerId: character,
+            roomCode: roomCode,
+            x: x,
+            y: y,
+            action: 'abajo',
+            location: 'bunker'
+        });
+        
+        // Pequeño retardo para asegurar que el mensaje se envíe antes de desmontar el componente
+        setTimeout(() => onExit({ kills }), 50);
+      }
+    }
+  }, [onExit, mapData, character, roomCode, kills]);
+
+  const { playerPos, playerState, setPlayerPos, handleManualMove } = usePlayerMovement(
+    { x: 1, y: 1 }, 
+    character, 
+    mapData ? mapData.matrix : [[0]], 
+    handleCollideSpecial,
+    roomCode,
+    otherPlayers,
+    health,
+    isPaused,
+    ammo,
+    'world',
+    paralyzed
+  );
+
+  // IA local del zombie eliminada (ahora se maneja vía WebSocket arriba)
+
+  // Update position once map is loaded (ONLY ONCE per room)
+  const initialPosSet = React.useRef(false);
+  useEffect(() => {
+      if (mapData && setPlayerPos && !initialPosSet.current) {
+          setPlayerPos({ x: mapData.startX, y: mapData.startY });
+          initialPosSet.current = true;
+      }
+  }, [mapData, setPlayerPos]);
+
+  // Reset flag when room changes
+  useEffect(() => {
+      initialPosSet.current = false;
+  }, [roomCode]);
+
+  // Respawn Timer Logic
+  useEffect(() => {
+    let timer;
+    if (health <= 0 && roomMode === 'TRADICIONAL') {
+      setRespawnTimeLeft(30);
+      timer = setInterval(() => {
+        setRespawnTimeLeft(prev => {
+          if (prev <= 1) {
+            clearInterval(timer);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    } else {
+      setRespawnTimeLeft(30);
+    }
+    return () => clearInterval(timer);
+  }, [health, roomMode]);
+  
+  // Broadcast de Puntería (Aim Angle) - Throttled a 5Hz (Más lento para estabilidad)
+  useEffect(() => {
+    if (!roomCode || health <= 0) return;
+    
+    let lastSentAngle = -999;
+    const interval = setInterval(() => {
+        const currentAngle = window.currentAimAngle || 0;
+        
+        // Solo enviar si el ángulo cambió más de 5 grados (Menos spam al servidor)
+        if (Math.abs(currentAngle - lastSentAngle) > 5) { 
+            if (webSocketService.connected) {
+                webSocketService.sendMessage('/app/game.action', {
+                    playerId: character,
+                    roomCode: roomCode,
+                    x: playerPos.x,
+                    y: playerPos.y,
+                    aimAngle: currentAngle,
+                    action: playerState.direction,
+                    health: health,
+                    location: 'world'
+                });
+                lastSentAngle = currentAngle;
+            }
+        }
+    }, 100); // 100ms = 10Hz (Mejor respuesta sin saturar el servidor)
+    
+    return () => clearInterval(interval);
+  }, [roomCode, character, playerPos.x, playerPos.y, playerState.direction, health]);
+
+
+  // Combat Handling
+  const handleShoot = useCallback((targetX, targetY) => {
+    if (health <= 0 || ammo <= 0) return;
+    
+    webSocketService.sendMessage('/app/game.action', {
+        playerId: character,
+        roomCode: roomCode,
+        x: playerPos.x,
+        y: playerPos.y,
+        targetX: targetX,
+        targetY: targetY,
+        action: 'ATTACK',
+        health: health,
+        ammo: ammo
+    });
+  }, [character, roomCode, playerPos, health, ammo]);
+
+  const [mobileShotTrigger, setMobileShotTrigger] = useState(null);
+
+  const handleMobileShoot = useCallback((angle) => {
+    setMobileShotTrigger({ angle, timestamp: Date.now() });
+  }, []);
+
+  if (!mapData) {
+    return <div style={{ color: '#32CD32', display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', backgroundColor: '#000', fontSize: '2rem' }}>Generando mapa aleatorio...</div>;
+  }
+
+  return (
+    <div className="game-view-cinematic" style={{ 
+      display: 'flex', 
+      alignItems: 'center', 
+      justifyContent: 'center', 
+      height: '100%', 
+      width: '100%',
+      backgroundColor: '#000',
+      position: 'relative'
+    }}>
+      {/* Ammo HUD */}
+      <div className="ammo-hud pop-in">
+        <img src="/assets/weapons/pistols/Bullets.png" alt="ammo" />
+        <span className={ammo <= 5 ? 'ammo-low' : ''}>{ammo}</span>
+      </div>
+
+      <GameMap 
+        matrix={mapData.matrix} 
+        playerPos={playerPos} 
+        playerSprite={{
+          character,
+          direction: playerState.direction,
+          isMoving: playerState.isMoving,
+          health: health
+        }}
+        otherPlayers={otherPlayers}
+        zombies={zombies}
+        onRestart={onRestart}
+        onShoot={handleShoot}
+        lastExternalShot={lastExternalShot}
+        onAimChange={(angle) => { window.currentAimAngle = angle; }}
+        isPaused={isPaused}
+        mobileShotTrigger={mobileShotTrigger}
+        ammo={ammo}
+        location="world"
+        zoneData={zoneData}
+        roomMode={roomMode}
+      />
+      
+      {/* Tournament Timer */}
+      {roomMode === 'TORNEO' && (
+        <div className="tournament-hud fade-in">
+          <div className="timer-box">
+            <span className="timer-label">MUERTE SÚBITA EN:</span>
+            <span className="timer-value">
+              {Math.floor(zoneData.timeLeft / 60)}:{String(zoneData.timeLeft % 60).padStart(2, '0')}
+            </span>
+          </div>
+          <div className="zone-status">ZONA AL {Math.round((zoneData.radius / 50) * 100)}%</div>
+        </div>
+      )}
+
+      <TouchControls 
+        onMove={handleManualMove} 
+        onShoot={handleMobileShoot}
+        onAimChange={(angle) => { window.currentAimAngle = angle; }}
+      />
+
+      {/* Tournament Win/Loss Overlay */}
+      {tournamentOutcome && (
+        <div className="death-overlay tournament-end-overlay fade-in">
+          {tournamentOutcome === 'WIN' && (
+            <div className="victory-box pop-in">
+              <h1 className="victory-title">¡VICTORIA MAGISTRAL!</h1>
+              <p>Eres el último superviviente en pie.</p>
+            </div>
+          )}
+          {tournamentOutcome === 'LOSS' && (
+            <div className="eliminated-box pop-in">
+              <h1 className="text-danger">TORNEO FINALIZADO</h1>
+              <p>Alguien más ha reclamado la victoria.</p>
+            </div>
+          )}
+          {tournamentOutcome === 'END' && (
+            <div className="eliminated-box pop-in">
+              <h1>TIEMPO AGOTADO</h1>
+              <p>Nadie logró sobrevivir a la zona tóxica.</p>
+            </div>
+          )}
+          
+          <div style={{ padding: '15px', backgroundColor: 'rgba(50, 205, 50, 0.2)', border: '2px solid #32CD32', borderRadius: '10px', marginTop: '20px', minWidth: '250px' }}>
+             <h3 style={{ fontSize: '1.5rem', color: '#fff', margin: '0', textAlign: 'center' }}>Estadísticas Finales</h3>
+             <p style={{ fontSize: '1.2rem', color: '#32CD32', fontWeight: 'bold', margin: '10px 0 0 0', textAlign: 'center' }}>Bajas confirmadas: {kills}</p>
+          </div>
+
+          <button className="game-btn primary-btn mt-4" onClick={onRestart}>
+            VOLVER AL MENÚ
+          </button>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default WorldMap;

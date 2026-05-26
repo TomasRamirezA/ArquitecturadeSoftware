@@ -1,0 +1,30 @@
+name: Deploy Test (Release)
+
+on:
+  push:
+    branches:
+      - release
+
+jobs:
+  deploy:
+    runs-on: self-hosted
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Sync Code to Test Directory
+        run: |
+          /usr/bin/mkdir -p /home/juan/ZOmbiland-Test/ZOmbiland-Frontend
+          /usr/bin/rsync -avz --exclude '.git' ./ /home/juan/ZOmbiland-Test/ZOmbiland-Frontend/
+
+      - name: Deploy with Docker Compose (Test)
+        run: |
+          cd /home/juan/ZOmbiland-Test
+          # Sincronizar archivos de infraestructura desde el frontend para asegurar independencia
+          /usr/bin/cp /home/juan/ZOmbiland-Test/ZOmbiland-Frontend/docker-compose.yml ./docker-compose.test.yml
+          /usr/bin/cp /home/juan/ZOmbiland-Test/ZOmbiland-Frontend/nginx.conf ./nginx.test.conf
+          # Limpieza total para evitar conflictos de nombres y redes
+          /usr/bin/docker compose -f docker-compose.test.yml down || true
+          /usr/bin/docker rm -f zombiland-frontend zombieland-backend zombieland-nginx zombieland-postgres || true
+          # Reiniciar específicamente el frontend y el proxy
+          /usr/bin/docker compose -f docker-compose.test.yml up -d --build frontend nginx

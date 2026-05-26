@@ -1,0 +1,10 @@
+C:\Users\maria\Downloads\to-do-code-pi-digits-parallelism-api-\src\main\java\edu\eci\arsw\parallelism\api\GlobalExceptionHandler.java
+C:\Users\maria\Downloads\to-do-code-pi-digits-parallelism-api-\src\main\java\edu\eci\arsw\parallelism\api\OpenApiConfig.java
+C:\Users\maria\Downloads\to-do-code-pi-digits-parallelism-api-\src\main\java\edu\eci\arsw\parallelism\api\PiDigitsController.java
+C:\Users\maria\Downloads\to-do-code-pi-digits-parallelism-api-\src\main\java\edu\eci\arsw\parallelism\api\PiResponse.java
+C:\Users\maria\Downloads\to-do-code-pi-digits-parallelism-api-\src\main\java\edu\eci\arsw\parallelism\core\PiDigits.java
+C:\Users\maria\Downloads\to-do-code-pi-digits-parallelism-api-\src\main\java\edu\eci\arsw\parallelism\core\PiDigitsService.java
+C:\Users\maria\Downloads\to-do-code-pi-digits-parallelism-api-\src\main\java\edu\eci\arsw\parallelism\core\strategies\ParallelStrategy.java
+C:\Users\maria\Downloads\to-do-code-pi-digits-parallelism-api-\src\main\java\edu\eci\arsw\parallelism\core\strategies\SequentialStrategy.java
+C:\Users\maria\Downloads\to-do-code-pi-digits-parallelism-api-\src\main\java\edu\eci\arsw\parallelism\core\strategies\ThreadJoinStrategy.java
+C:\Users\maria\Downloads\to-do-code-pi-digits-parallelism-api-\src\main\java\edu\eci\arsw\parallelism\ParallelismApplication.java

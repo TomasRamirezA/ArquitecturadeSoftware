@@ -1,0 +1,16 @@
+version: '3.9'
+services:
+  web:
+    build:
+      context: .
+      args:
+        - VITE_API_BASE_URL=http://localhost:8080/api
+        - VITE_USE_MOCK=true
+    ports:
+      - '5173:4173'
+# No se incluye backend porque no hay una imagen vlida disponible localmente.
+# Puedes descomentarlo y poner tu imagen real cuando la tengas.
+#  backend:
+#    image: openjdk:17-slim
+#    ports:
+#      - '8081:8080'

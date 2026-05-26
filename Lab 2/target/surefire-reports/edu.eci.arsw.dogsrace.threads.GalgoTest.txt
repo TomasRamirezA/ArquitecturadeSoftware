@@ -1,0 +1,4 @@
+-------------------------------------------------------------------------------
+Test set: edu.eci.arsw.dogsrace.threads.GalgoTest
+-------------------------------------------------------------------------------
+Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 4.528 s -- in edu.eci.arsw.dogsrace.threads.GalgoTest

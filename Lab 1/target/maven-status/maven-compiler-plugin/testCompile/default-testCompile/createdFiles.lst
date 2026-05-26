@@ -1,0 +1,4 @@
+edu\eci\arsw\parallelism\core\PiDigitsPerformanceTest.class
+edu\eci\arsw\parallelism\core\PiDigitsServiceTest.class
+edu\eci\arsw\parallelism\api\PiDigitsControllerTest.class
+edu\eci\arsw\parallelism\core\PiDigitsTest.class

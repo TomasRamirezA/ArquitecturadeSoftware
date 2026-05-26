@@ -1,0 +1,10 @@
+edu\eci\arsw\parallelism\api\PiDigitsController.class
+edu\eci\arsw\parallelism\core\strategies\SequentialStrategy.class
+edu\eci\arsw\parallelism\ParallelismApplication.class
+edu\eci\arsw\parallelism\core\PiDigitsService.class
+edu\eci\arsw\parallelism\core\strategies\ThreadJoinStrategy.class
+edu\eci\arsw\parallelism\core\strategies\ParallelStrategy.class
+edu\eci\arsw\parallelism\core\PiDigits.class
+edu\eci\arsw\parallelism\api\OpenApiConfig.class
+edu\eci\arsw\parallelism\api\GlobalExceptionHandler.class
+edu\eci\arsw\parallelism\api\PiResponse.class

@@ -1,0 +1,25 @@
+name: Deploy Production (Main)
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: self-hosted
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Sync Code to Production Directory
+        run: |
+          /usr/bin/mkdir -p /home/juan/ZOmbiland-Prod/ZOmbiland-Frontend
+          /usr/bin/rsync -avz --exclude '.git' ./ /home/juan/ZOmbiland-Prod/ZOmbiland-Frontend/
+
+      - name: Deploy with Docker Compose (Prod)
+        run: |
+          /usr/bin/mkdir -p /home/juan/ZOmbiland-Prod
+          cd /home/juan/ZOmbiland-Prod
+          # Reiniciar específicamente el frontend y el proxy de producción
+          /usr/bin/docker compose -p zombieland-prod -f docker-compose.prod.yml up -d --build frontend-prod nginx-prod

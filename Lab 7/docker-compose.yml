@@ -1,0 +1,26 @@
+services:
+  backend:
+    build:
+      context: ../../Downloads/Lab-7---Parte-4-BluePrints-API---React---UI-Socket/Lab-7---Parte-4-BluePrints-API---React---UI-Socket/backend
+    ports:
+      - "3001:3001"
+    container_name: blueprints-backend
+    restart: unless-stopped
+    networks:
+      - blueprints-net
+
+  frontend:
+    build:
+      context: ../../Downloads/Lab-7---Parte-4-BluePrints-API---React---UI-Socket/Lab-7---Parte-4-BluePrints-API---React---UI-Socket
+    ports:
+      - "5173:80"
+    container_name: blueprints-frontend
+    depends_on:
+      - backend
+    restart: unless-stopped
+    networks:
+      - blueprints-net
+
+networks:
+  blueprints-net:
+    driver: bridge

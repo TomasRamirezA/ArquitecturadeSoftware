@@ -1,0 +1,31 @@
+name: Deploy Production (Main)
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: self-hosted
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Sync Code to Production Directory
+        run: |
+          /usr/bin/mkdir -p /home/juan/ZOmbiland-Prod/ZOmbiland-Backend
+          /usr/bin/rsync -avz --exclude '.git' ./ /home/juan/ZOmbiland-Prod/ZOmbiland-Backend/
+
+      - name: Deploy with Docker Compose (Prod)
+        run: |
+          /usr/bin/mkdir -p /home/juan/ZOmbiland-Prod
+          cd /home/juan/ZOmbiland-Prod
+          # Asegurar que tenemos los archivos de infraestructura actualizados
+          /usr/bin/cp /home/juan/ZOmbiland-Prod/ZOmbiland-Backend/docker-compose.prod.yml ./docker-compose.prod.yml
+          /usr/bin/cp /home/juan/ZOmbiland-Prod/ZOmbiland-Backend/nginx.prod.conf ./nginx.prod.conf
+          # Limpieza total para evitar conflictos de nombres y redes en producción
+          /usr/bin/docker compose -p zombieland-prod -f docker-compose.prod.yml down || true
+          /usr/bin/docker rm -f zombiland-frontend-prod zombieland-backend-prod zombieland-nginx-prod zombieland-postgres-prod || true
+          # Reiniciar específicamente el backend y el proxy de producción
+          /usr/bin/docker compose -p zombieland-prod -f docker-compose.prod.yml up -d --build backend-prod nginx-prod
